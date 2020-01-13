@@ -1,18 +1,20 @@
 import * as fs from 'fs'
-import Model from './model'
 import * as fse from 'fs-extra'
 import * as path from 'path'
-// tslint:disable-next-line
-const junk = require('junk')
-import { IPost, IPostDb } from './interfaces/post'
-import ContentHelper from '../helpers/content-helper'
 import matter from 'gray-matter'
 import moment from 'moment'
 import Bluebird from 'bluebird'
+import junk from 'junk'
+import Model from './model'
+import { IPost, IPostDb } from './interfaces/post'
+import ContentHelper from '../helpers/content-helper'
+import { formatYamlString } from '../helpers/utils'
+
 Bluebird.promisifyAll(fs)
 
 export default class Posts extends Model {
   postDir: string
+
   postImageDir: string
 
   constructor(appInstance: any) {
@@ -31,14 +33,66 @@ export default class Posts extends Model {
       requestList.push(fs.readFileSync(path.join(this.postDir, item), 'utf8'))
     })
     const results = await Bluebird.all(requestList)
-    results.forEach((result: any, index: any) => {
+    const fixedResults = JSON.parse(JSON.stringify(results))
+    /**
+     * The format of the correction `tag` is changed from a string to an array, and the article source file is updated. from v0.7.6
+     */
+    await Promise.all(results.map(async (result: any, index: any) => {
+      const postMatter = matter(result)
+      const data = (postMatter.data as any)
+
+      data.title = formatYamlString(data.title)
+
+      if (data && data.date) {
+        if (typeof data.date === 'string') {
+          data.date = moment(data.date).format('YYYY-MM-DD HH:mm:ss')
+        } else {
+          data.date = moment(data.date).subtract(8, 'hours').format('YYYY-MM-DD HH:mm:ss')
+        }
+      }
+
+      // If there is a `tag` and it is of string type, it is corrected to array type.
+      if (data && typeof data.tags === 'string') {
+        const tagReg = /tags: [^\s[]/i
+        const newTagString = data.tags.split(' ').toString()
+
+        if (tagReg.test(result)) {
+          const mdStr = `---
+title: '${data.title}'
+date: ${data.date}
+tags: [${newTagString}]
+published: ${data.published || false}
+hideInList: ${data.hideInList || false}
+feature: ${data.feature || ''}
+isTop: ${data.isTop || false}
+---
+${postMatter.content}`
+
+          fixedResults[index] = mdStr
+          fse.writeFileSync(`${this.postDir}/${files[index]}`, mdStr)
+        }
+      }
+    }))
+
+    fixedResults.forEach((result: any, index: any) => {
       const postMatter = matter(result)
 
-      // 修正 matter 格式化掉 日期问题
       const data = (postMatter.data as any)
-      if (data && data.date) {
-        data.date = moment(data.date).subtract(8, 'hours').format('YYYY-MM-DD HH:mm:ss')
+
+      // Remove useless `'` in formatYamlString generate
+      if (data && data.title) {
+        data.title = String(data.title).replace(/''/g, '\'')
       }
+      
+      // Fix matter's formatted `date` problem
+      if (data && data.date) {
+        if (typeof data.date === 'string') {
+          data.date = moment(data.date).format('YYYY-MM-DD HH:mm:ss')
+        } else {
+          data.date = moment(data.date).subtract(8, 'hours').format('YYYY-MM-DD HH:mm:ss')
+        }
+      }
+
       delete postMatter.orig // Remove orig <Buffer>
       const post = {
         ...postMatter,
@@ -46,21 +100,31 @@ export default class Posts extends Model {
         fileName: '',
       }
 
-      post.abstract = (post.content).substring(0, post.content.indexOf('<!-- more -->')) // 摘要
-      post.fileName = files[index].substring(0, files[index].length - 3) // 有待优化!
+      const moreReg = /\n\s*<!--\s*more\s*-->\s*\n/i
+      const matchMore = moreReg.exec(post.content)
+      if (matchMore) {
+        post.abstract = (post.content).substring(0, matchMore.index) // Abstract
+      }
+
+      post.fileName = files[index].substring(0, files[index].length - 3) // To be optimized!
       resultList.push(post)
     })
 
     const list: any = []
     resultList.forEach((item: any) => {
-      // 从 hexo 或其他平台迁移过来的文章不带有 published 字段
+      // Articles migrated from hexo or other platforms do not have a `published` field
       if (item.data.published === undefined) {
         item.data.published = false
       }
 
-      // 从其他平台迁移过来的文章或旧文章不带有 hideInList 字段
+      // Articles migrated from other platforms or old articles do not have `hideInList` fields
       if (item.data.hideInList === undefined) {
         item.data.hideInList = false
+      }
+
+      // Articles migrated from other platforms or old articles do not have `isTop` fields
+      if (item.data.isTop === undefined) {
+        item.data.isTop = false
       }
 
       list.push(item)
@@ -74,14 +138,15 @@ export default class Posts extends Model {
 
   async list() {
     await this.savePosts()
-    // await this.$posts.defaults({ posts: [] }).write()
     const posts = await this.$posts.get('posts').value()
     const helper = new ContentHelper()
 
     const list = posts.map((post: IPostDb) => {
       const item = JSON.parse(JSON.stringify(post))
       item.content = helper.changeImageUrlDomainToLocal(item.content, this.appDir)
-      item.data.feature = item.data.feature ? helper.changeFeatureImageUrlDomainToLocal(item.data.feature, this.appDir) : item.data.feature
+      item.data.feature = item.data.feature && !item.data.feature.includes('http')
+        ? helper.changeFeatureImageUrlDomainToLocal(item.data.feature, this.appDir)
+        : item.data.feature
       return item
     })
 
@@ -89,47 +154,48 @@ export default class Posts extends Model {
   }
 
   /**
-   * 保存文章到文件
-   * @param post 文章
+   * Save Post to file
+   * @param post
    */
   async savePostToFile(post: IPost): Promise<IPost | null> {
     const helper = new ContentHelper()
     const content = helper.changeImageUrlLocalToDomain(post.content, this.db.setting.domain)
     const extendName = (post.featureImage.name || 'jpg').split('.').pop()
 
+    post.title = formatYamlString(post.title)
+
     const mdStr = `---
-title: ${post.title}
+title: '${post.title}'
 date: ${post.date}
-tags: ${post.tags.join(' ')}
+tags: [${post.tags.join(',')}]
 published: ${post.published}
 hideInList: ${post.hideInList}
-feature: ${post.featureImage.name ? `/post-images/${post.fileName}.${extendName}` : ''}
+feature: ${post.featureImage.name ? `/post-images/${post.fileName}.${extendName}` : post.featureImagePath}
+isTop: ${post.isTop}
 ---
 ${content}`
 
     try {
-
-      // 存在文章大图
+      // If exist feature image
       if (post.featureImage.path) {
-
         const filePath = `${this.postImageDir}/${post.fileName}.${extendName}`
 
         if (post.featureImage.path !== filePath) {
-          await fse.copySync(post.featureImage.path, filePath)
+          fse.copySync(post.featureImage.path, filePath)
 
-          // 清除旧文件
+          // Clean the old file
           if (post.featureImage.path.includes(this.postImageDir)) {
-            await fse.removeSync(post.featureImage.path)
+            fse.removeSync(post.featureImage.path)
           }
         }
       }
 
-      // write file must use fse, beause fs.writeFile need callback
+      // Write file must use fse, beause fs.writeFile need callback
       await fse.writeFile(`${this.postDir}/${post.fileName}.md`, mdStr)
 
-      // 清除旧文件
+      // Clean the old file
       if (post.deleteFileName) {
-        await fse.removeSync(`${this.postDir}/${post.deleteFileName}.md`)
+        fse.removeSync(`${this.postDir}/${post.deleteFileName}.md`)
       }
     } catch (e) {
       console.error('ERROR: ', e)
@@ -140,14 +206,14 @@ ${content}`
   async deletePost(post: IPostDb) {
     try {
       const postUrl = `${this.postDir}/${post.fileName}.md`
-      await fse.removeSync(postUrl)
+      fse.removeSync(postUrl)
 
-      // clean feature image
+      // Clean feature image
       if (post.data.feature) {
-        await fse.removeSync(post.data.feature.replace('file://', ''))
+        fse.removeSync(post.data.feature.replace('file://', ''))
       }
 
-      // clean post content image
+      // Clean post content image
       const imageReg = /(!\[.*?\]\()(.+?)(\))/g
       const imageList = post.content.match(imageReg)
       if (imageList) {
@@ -156,7 +222,7 @@ ${content}`
           return item.substring(index + 1, item.length - 1)
         })
         postImagePaths.forEach(async (filePath: string) => {
-          await fse.removeSync(filePath.replace('file://', ''))
+          fse.removeSync(filePath.replace('file://', ''))
         })
       }
       return true
@@ -167,16 +233,14 @@ ${content}`
   }
 
   async uploadImages(files: any[]) {
-    console.log('传过来的 files', files)
     await fse.ensureDir(this.postImageDir)
     const results = []
     for (const file of files) {
       const extendName = file.name.split('.').pop()
       const newFileName = new Date().getTime()
       const filePath = `${this.postImageDir}/${newFileName}.${extendName}`
-      await fse.copySync(file.path, filePath)
+      fse.copySync(file.path, filePath)
       results.push(filePath)
-      console.log('复制成功')
     }
     return results
   }

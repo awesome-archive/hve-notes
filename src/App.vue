@@ -5,12 +5,20 @@
 </template>
 
 <script lang="ts">
+import { shell } from 'electron'
 import Vue from 'vue'
 import Component from 'vue-class-component'
 
 @Component
 export default class App extends Vue {
-
+  mounted() {
+    document.addEventListener('click', (event: any) => {
+      if (event.target.tagName === 'A' && event.target.href.startsWith('http')) {
+        event.preventDefault()
+        shell.openExternal(event.target.href)
+      }
+    })
+  }
 }
 </script>
 
@@ -23,13 +31,13 @@ export default class App extends Vue {
 
   /* Global CSS */
   body {
-    background: #F7F6F3;
-    color: #434343;
+    background: #fff;
+    color: #555;
   }
 
   ::-webkit-scrollbar{
-    width: 0px;
-    height: 6px;
+    width: 4px;
+    height: 4px;
     border-radius: 4px;
     background-color: #fff;
 
@@ -38,22 +46,19 @@ export default class App extends Vue {
   ::-webkit-scrollbar-button{
     display: none;
   }
-    /*	经测试好像并不能控制什么	*/
   ::-webkit-scroll-track{
     display: none;
   }
-    /*	滚动条内侧部分 去掉	*/
   ::-webkit-scrollbar-track-piece {
     display: none;
   }
 
-  /*	滚动条中可以拖动的那部分	*/
   ::-webkit-scrollbar-thumb{
     background-color: #eee;
     opacity: 0.7;
     border-radius: 4px;
   }
-  /*	变角部分	*/
+
   ::-webkit-scrollbar-corner {
     display: none;
   }
@@ -72,6 +77,6 @@ export default class App extends Vue {
   }
 
   .application {
-    font-family: system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Oxygen,Ubuntu,Cantarell,Droid Sans,Helvetica Neue,Fira Sans,sans-serif!important;
+    font-family: PingFang SC,-apple-system,SF UI Text,Lucida Grande,STheiti,Microsoft YaHei,sans-serif !important;
   }
 </style>

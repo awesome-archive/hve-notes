@@ -1,6 +1,7 @@
 <html>
   <head>
   <%- include('./includes/head', { siteTitle: `${tag.name} | ${themeConfig.siteName}` }) %>
+  <meta name="description" content="<%- site.customConfig.metaDescription || themeConfig.siteDescription %>" />
   </head>
   <body>
     <div class="main">
@@ -8,7 +9,7 @@
         <%- include('./includes/header') %>
         <div class="current-tag-container">
             <h2 class="title">
-                标签：#<%= tag.name %>
+                标签：# <%= tag.name %>
             </h2> 
         </div>
         <%- include('./includes/post-list') %>

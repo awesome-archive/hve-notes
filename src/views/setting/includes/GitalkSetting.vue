@@ -1,7 +1,7 @@
 <template>
   <div>
     <a-form-item label=" " :labelCol="formLayout.label" :wrapperCol="formLayout.wrapper" :colon="false">
-      <a href="#" @click="openPage('https://github.com/gitalk/gitalk')">Gitalk Document</a>
+      <a @click.prevent="openPage('https://github.com/gitalk/gitalk')">Gitalk Document</a>
     </a-form-item>
     <a-form-item label="Client ID" :labelCol="formLayout.label" :wrapperCol="formLayout.wrapper" :colon="false">
       <a-input v-model="form.clientId"></a-input>
@@ -9,7 +9,7 @@
     <a-form-item label="Client Secret" :labelCol="formLayout.label" :wrapperCol="formLayout.wrapper" :colon="false">
       <a-input v-model="form.clientSecret"></a-input>
     </a-form-item>
-    <a-form-item :label="$t('branch')" :labelCol="formLayout.label" :wrapperCol="formLayout.wrapper" :colon="false">
+    <a-form-item :label="$t('repository')" :labelCol="formLayout.label" :wrapperCol="formLayout.wrapper" :colon="false">
       <a-input v-model="form.repository"></a-input>
     </a-form-item>
     <a-form-item label="Owner" :labelCol="formLayout.label" :wrapperCol="formLayout.wrapper" :colon="false">
@@ -19,7 +19,7 @@
 </template>
 
 <script lang="ts">
-import { ipcRenderer, Event, shell } from 'electron'
+import { ipcRenderer, IpcRendererEvent, shell } from 'electron'
 import { Vue, Component } from 'vue-property-decorator'
 import { State } from 'vuex-class'
 
@@ -47,6 +47,7 @@ export default class GitalkSetting extends Vue {
     this.form.repository = gitalkSetting.repository
     this.form.owner = gitalkSetting.owner
   }
+
   openPage(url: string) {
     shell.openExternal(url)
   }

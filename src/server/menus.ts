@@ -2,11 +2,6 @@ import Model from './model'
 import { IMenu } from './interfaces/menu'
 
 export default class Menus extends Model {
-
-  constructor(appInstance: any) {
-    super(appInstance)
-  }
-
   list() {
     const menus = this.$posts.get('menus').value()
     return menus
@@ -15,7 +10,7 @@ export default class Menus extends Model {
   public async saveMenu(menu: IMenu) {
     const menus = await this.$posts.get('menus').value()
     if (typeof menu.index === 'number') {
-      const index = menu.index
+      const { index } = menu
       delete menu.index
       menus[index] = menu
     } else {
@@ -27,9 +22,13 @@ export default class Menus extends Model {
     return menus
   }
 
+  public async saveMenus(menus: IMenu[]) {
+    await this.$posts.set('menus', menus).write()
+    return menus
+  }
+
   public async deleteMenu(menuValue: string) {
     const menu = await this.$posts.get('menus').remove({ name: menuValue }).write()
     return menu
   }
-
 }

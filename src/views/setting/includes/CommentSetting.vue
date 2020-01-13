@@ -1,35 +1,40 @@
 <template>
   <div>
-    <a-form :form="form">
-      <a-form-item label="Platform" :labelCol="formLayout.label" :wrapperCol="formLayout.wrapper">
+    <a-form :form="form" style="padding-bottom: 48px;">
+      <a-form-item label="Platform" :labelCol="formLayout.label" :wrapperCol="formLayout.wrapper" :colon="false">
         <a-radio-group name="commentPlatform" v-model="form.commentPlatform">
           <a-radio value="gitalk">Gitalk</a-radio>
           <a-radio value="disqus">Disqus</a-radio>
         </a-radio-group>
       </a-form-item>
       <a-form-item :label="$t('isShowComment')" :labelCol="formLayout.label" :wrapperCol="formLayout.wrapper" :colon="false">
-        <a-switch v-model="form.showFeatureImage" />
+        <a-switch v-model="form.showComment" />
       </a-form-item>
       <gitalk-setting ref="gitalkSetting" v-show="form.commentPlatform === 'gitalk'"></gitalk-setting>
       <disqus-setting ref="disqusSetting" v-show="form.commentPlatform === 'disqus'"></disqus-setting>
-      <a-form-item label=" " :labelCol="formLayout.label" :wrapperCol="formLayout.wrapper" :colon="false">
-        <a-button @click="submit" type="primary">{{ $t('save') }}</a-button>
-      </a-form-item>
+      <footer-box>
+        <div class="flex justify-end">
+          <a-button @click="submit" type="primary">{{ $t('save') }}</a-button>
+        </div>
+      </footer-box>
     </a-form>
   </div>
 </template>
 
 <script lang="ts">
-import { ipcRenderer, Event } from 'electron'
+import { ipcRenderer, IpcRendererEvent } from 'electron'
 import { Vue, Component } from 'vue-property-decorator'
 import { State } from 'vuex-class'
 import GitalkSetting from './GitalkSetting.vue'
 import DisqusSetting from './DisqusSetting.vue'
+import FooterBox from '../../../components/FooterBox/Index.vue'
+import ga from '../../../helpers/analytics'
 
 @Component({
   components: {
     GitalkSetting,
     DisqusSetting,
+    FooterBox,
   },
 })
 export default class CommentSetting extends Vue {
@@ -64,9 +69,11 @@ export default class CommentSetting extends Vue {
     }
     console.log('click comment setting save', form)
     ipcRenderer.send('comment-setting-save', form)
-    ipcRenderer.once('comment-setting-saved', (event: Event, result: any) => {
+    ipcRenderer.once('comment-setting-saved', (event: IpcRendererEvent, result: any) => {
       this.$bus.$emit('site-reload')
-      this.$bus.$emit('snackbar-display', this.$t('commentSettingSuccess'))
+      this.$message.success(this.$t('commentSettingSuccess'))
+
+      ga.event('Setting', 'Setting - comment-save', { evLabel: this.form.commentPlatform })
     })
   }
 }

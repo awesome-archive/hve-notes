@@ -1,31 +1,47 @@
 'use strict'
 
-import { app, protocol, BrowserWindow, ipcMain, Menu } from 'electron'
-import App from './server/app'
-
+import {
+  app, protocol, BrowserWindow, Menu, shell,
+} from 'electron'
 import {
   createProtocol,
 } from 'vue-cli-plugin-electron-builder/lib'
+import { autoUpdater } from 'electron-updater'
+import App from './server/app'
+import messages from './assets/locales-menu'
+import initServer from './server'
+
 const isDevelopment = process.env.NODE_ENV !== 'production'
 
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
 let win: any
+let menu: Menu
+let httpServer: any
 
 // Standard scheme must be registered before the app is ready
-protocol.registerStandardSchemes(['app'], { secure: true })
+protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { secure: true, standard: true } }])
 function createWindow() {
   // Create the browser window.
-  win = new BrowserWindow({
+  const winOption: any = {
     width: 1200,
     height: 800,
+    minHeight: 642,
+    minWidth: 1000,
     webPreferences: {
       webSecurity: false, // FIXED: Not allowed to load local resource
+      nodeIntegration: true,
     },
     // frame: false, // 去除默认窗口栏
-    titleBarStyle: 'hidden',
-  })
-  win.setTitle('Hve Notess')
+    titleBarStyle: 'hiddenInset' as ('hidden' | 'default' | 'hiddenInset' | 'customButtonsOnHover' | undefined),
+  }
+
+  if (process.platform !== 'darwin') {
+    winOption.icon = `${__dirname}/app-icons/gridea.png`
+  }
+  
+  win = new BrowserWindow(winOption)
+  win.setTitle('Gridea')
 
   if (process.env.WEBPACK_DEV_SERVER_URL) {
     // Load the url of the dev server if in development mode
@@ -35,59 +51,77 @@ function createWindow() {
     createProtocol('app')
     // Load the index.html when not in development
     win.loadURL('app://./index.html')
+    autoUpdater.checkForUpdatesAndNotify()
   }
 
   win.on('closed', () => {
     win = null
   })
 
+  const locale: string = app.getLocale() || 'zh-CN'
+  const menuLabels = messages[locale] || messages['zh-CN']
   // menu
   const template: any = [
     {
-      label: 'Edit',
+      label: menuLabels.edit,
       submenu: [
-        {role: 'undo'},
-        {role: 'redo'},
-        {type: 'separator'},
-        {role: 'cut'},
-        {role: 'copy'},
-        {role: 'paste'},
-        {role: 'pasteandmatchstyle'},
-        {role: 'delete'},
-        {role: 'selectall'},
-        {role: 'toggledevtools'},
+        {
+          label: menuLabels.save,
+          accelerator: 'CmdOrCtrl+S',
+          click: () => {
+            win.webContents.send('click-menu-save')
+          },
+        },
+        { type: 'separator' },
+        { role: 'undo', label: menuLabels.undo },
+        { role: 'redo', label: menuLabels.redo },
+        { type: 'separator' },
+        { role: 'cut', label: menuLabels.cut },
+        { role: 'copy', label: menuLabels.copy },
+        { role: 'paste', label: menuLabels.paste },
+        { role: 'delete', label: menuLabels.delete },
+        { role: 'selectall', label: menuLabels.selectall },
+        { role: 'toggledevtools', label: menuLabels.toggledevtools },
+        { type: 'separator' },
+        { role: 'close', label: menuLabels.close },
+        { role: 'quit', label: menuLabels.quit },
       ],
     },
     {
       role: 'windowMenu',
     },
     {
-      role: 'help',
+      role: menuLabels.help,
       submenu: [
         {
           label: 'Learn More',
-          click() { require('electron').shell.openExternal('https://github.com/hve-notes/hve-notes') },
+          click() { shell.openExternal('https://github.com/getgridea/gridea') },
         },
       ],
     },
   ]
 
-  const menu = Menu.buildFromTemplate(template)
+  menu = Menu.buildFromTemplate(template)
   Menu.setApplicationMenu(menu)
+
+  const s = initServer()
+  httpServer = s.server
 
   const setting = {
     mainWindow: win,
     app,
     baseDir: __dirname,
+    previewServer: s.app,
   }
 
   // Init app
   const appInstance = new App(setting)
-  console.log(appInstance) // DELETE ME
+  console.log('Main process runing...', appInstance.appDir) // DELETE ME
 }
 
 // Quit when all windows are closed.
 app.on('window-all-closed', () => {
+  httpServer && httpServer.close()
   // On macOS it is common for applications and their menu bar
   // to stay active until the user quits explicitly with Cmd + Q
   if (process.platform !== 'darwin') {

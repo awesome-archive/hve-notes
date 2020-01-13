@@ -1,31 +1,26 @@
+import shortid from 'shortid'
 import Model from './model'
 import { ITag } from './interfaces/tag'
 import slug from '../helpers/slug'
-import shortid from 'shortid'
 import { UrlFormats } from '../helpers/enums'
 
 export default class Tags extends Model {
-
-  constructor(appInstance: any) {
-    super(appInstance)
-  }
-
   public async saveTags() {
     const posts = this.$posts.get('posts').value()
     let list: any = []
     posts.forEach((post: any) => {
-      if (typeof post.data.tags === 'string') {
-        list = list.concat(post.data.tags.split(' '))
+      if (Array.isArray(post.data.tags)) {
+        list = list.concat(post.data.tags)
       }
     })
     list = Array.from(new Set([...list]))
 
-    const themeConfig = this.$theme.get('config')
+    const themeConfig = await this.$theme.get('config').value()
     const tagUrlFormat = themeConfig.tagUrlFormat || UrlFormats.Slug
 
     let existUsedTags = this.$posts.get('tags').filter({ used: true }).value()
 
-    // 使用标签后删除文章，则有可能存在标签未使用状态
+    // If you delete an article after using a tag, there may be a tag unused state.
     existUsedTags = existUsedTags.map((tag: ITag) => {
       return {
         ...tag,
@@ -35,7 +30,7 @@ export default class Tags extends Model {
 
     const unusedTags = this.$posts.get('tags').filter({ used: false }).value()
 
-    // 导入文章的 tag 则为新使用过的
+    // The tag of the imported article is newly used
     const newUsedTags = list
       .filter((item: any) => !existUsedTags.find((tag: ITag) => tag.name === item))
       .map((item: any) => {
@@ -71,7 +66,7 @@ export default class Tags extends Model {
 
   public async saveTag(tag: ITag) {
     const tags = await this.$posts.get('tags').value()
-    if (tag.index && tag.index >= 0) {
+    if (typeof tag.index === 'number' && tag.index >= 0) {
       tags[tag.index] = tag
     } else {
       tags.push(tag)
@@ -84,5 +79,4 @@ export default class Tags extends Model {
     const tag = await this.$posts.get('tags').remove({ name: tagValue }).write()
     return tag
   }
-
 }

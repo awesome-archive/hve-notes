@@ -1,14 +1,10 @@
 import * as fse from 'fs-extra'
 import * as path from 'path'
 import Model from './model'
-import { ISetting, ICommentSetting } from './interfaces/setting'
+import { ICommentSetting } from './interfaces/setting'
+import { ISetting } from '../interfaces/setting'
 
 export default class Setting extends Model {
-
-  constructor(appInstance: any) {
-    super(appInstance)
-  }
-
   getSetting() {
     const setting = this.$setting.get('config').value()
     return setting
@@ -35,13 +31,12 @@ export default class Setting extends Model {
   }
 
   async uploadFavicon(filePath: string) {
-    const faviconPath = path.join(this.appDir, 'output/favicon.ico')
-    await fse.copySync(filePath, faviconPath)
+    const faviconPath = path.join(this.appDir, 'favicon.ico')
+    fse.copySync(filePath, faviconPath)
   }
 
   async uploadAvatar(filePath: string) {
     const avatarPath = path.join(this.appDir, 'images/avatar.png')
-    await fse.copySync(filePath, avatarPath)
+    fse.copySync(filePath, avatarPath)
   }
-
 }

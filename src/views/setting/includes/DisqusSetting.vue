@@ -1,7 +1,7 @@
 <template>
   <div>
     <a-form-item label=" " :labelCol="formLayout.label" :wrapperCol="formLayout.wrapper" :colon="false">
-      <a href="#" @click="openPage('https://github.com/SukkaW/DisqusJS')">DisqusJS Document</a>
+      <a @click.prevent="openPage('https://github.com/SukkaW/DisqusJS')">DisqusJS Document</a>
     </a-form-item>
     <a-form-item label="shortname" :labelCol="formLayout.label" :wrapperCol="formLayout.wrapper" :colon="false">
       <a-input v-model="form.shortname"></a-input>
@@ -16,7 +16,7 @@
 </template>
 
 <script lang="ts">
-import { ipcRenderer, Event, shell } from 'electron'
+import { ipcRenderer, IpcRendererEvent, shell } from 'electron'
 import Vue from 'vue'
 import Component from 'vue-class-component'
 import { State } from 'vuex-class'

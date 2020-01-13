@@ -1,4 +1,4 @@
-import { ipcMain, Event } from 'electron'
+import { ipcMain, IpcMainEvent } from 'electron'
 import Renderer from '../renderer'
 
 export default class RendererEvents {
@@ -7,21 +7,12 @@ export default class RendererEvents {
 
     ipcMain.removeAllListeners('html-render')
     ipcMain.removeAllListeners('html-rendered')
-    ipcMain.removeAllListeners('site-publish')
-    ipcMain.removeAllListeners('site-published')
 
-    ipcMain.on('html-render', async (event: Event, params: any) => {
+    ipcMain.on('html-render', async (event: IpcMainEvent, params: any) => {
       if (renderer.db.themeConfig.themeName) {
         await renderer.preview()
       }
       event.sender.send('html-rendered', null)
     })
-
-    ipcMain.on('site-publish', async (event: Event, params: any) => {
-      const result = await renderer.publish()
-      event.sender.send('site-published', result)
-    })
-
   }
-
 }
